@@ -105,7 +105,7 @@ class Jev:
 
         if "answers" not in body:
             raise ValueError(
-                "Unexpected Decisions API response shape (no 'answers' key; got "
+                "Unexpected Jev API response shape (no 'answers' key; got "
                 f"{sorted(body)}). Check the current response schema in the docs."
             )
         return body["answers"], rec
