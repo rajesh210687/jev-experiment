@@ -20,10 +20,10 @@ the small decisions and, optionally, which model runs the steps routed as simple
 |---|---|---|---|---|---|
 | Claude Opus 5.5 (`claude-opus-5-5`) | 4.00 | 5.00 | 0.20 | 20.00 | [Anthropic pricing](https://platform.claude.com/docs/en/about-claude/pricing) |
 | Claude Sonnet 5.5 (optional cheap executor) | 2.00 | 2.50 | 0.20 | 10.00 | same page |
-| Jev (`typesafe/jev-1.13` via OpenRouter) | 0.042 | n/a | n/a | free | [OpenRouter Jev guide](https://openrouter.ai/docs/guides/community/jev) (seen in search results; this environment's proxy blocks openrouter.ai, so I couldn't open the page). **Verify before quoting.** |
+| Jev (`jev-latest`, TypeSafe API) | 0.042 | n/a | n/a | free | The published rate as listed on [OpenRouter](https://openrouter.ai/docs/guides/community/jev). I couldn't confirm TypeSafe's direct price. **Check it in your TypeSafe console.** |
 
-For Jev, the harness records the `usage.cost` value each Decisions API response returns. It falls back to the
-table price only when that field is missing, and the report says when it did.
+For Jev, the harness uses a `usage.cost` value if the response includes one. Otherwise it prices the call from
+the table above using the `usage` token counts, and the report says so.
 
 ---
 
@@ -36,16 +36,16 @@ table price only when that field is missing, and the report says when it did.
 - `httpx`, for Jev.
 - `pytest`, which both the agent's code and the quality gate use.
 
-**Jev access.** Jev is called through **OpenRouter's Decisions API** with an OpenRouter key.
+**Jev access.** Jev is called directly on **TypeSafe's API**, `POST https://api.typesafe.ai/v1/systemone`,
+with `Authorization: Bearer $TYPESAFE_API_KEY`. Keys come from `console.typesafe.ai/keys`.
 
-**No official Jev SDK is used.** I could not verify the method names of a TypeSafe Python SDK, so the harness
-calls the REST endpoint directly with `httpx`, in one 5-line method (`Jev._post`). If you'd rather use an SDK,
-change only that method. Docs to check:
+**No Jev SDK is used.** I could not verify the method names of TypeSafe's Python SDK, so the harness calls the
+REST endpoint directly with `httpx`, in one 5-line method (`Jev._post`). If you'd rather use the SDK, change
+only that method. Docs to check:
 
-- OpenRouter Jev guide: https://openrouter.ai/docs/guides/community/jev
-- Decisions API reference: https://openrouter.ai/docs/api/api-reference/alphadecisions/submit-a-decisions-questions-and-answers-request
-- TypeSafe's own docs. Several look-alike Jev sites exist, so confirm the official domain from TypeSafe before
-  trusting one.
+- TypeSafe API docs: https://docs.typesafe.ai. This environment couldn't reach it, so the request and response
+  fields here come from published examples.
+- Several look-alike Jev sites exist. Trust TypeSafe's own docs over them.
 
 ```text
 jev-experiment/
@@ -88,8 +88,8 @@ pytest>=8
 ```bash
 # Anthropic API key (Claude Console -> API keys). `ant auth login` also works instead.
 ANTHROPIC_API_KEY=sk-ant-...
-# Jev is called through OpenRouter's Decisions API. Key format: sk-or-v1-...
-OPENROUTER_API_KEY=sk-or-v1-...
+# Jev, called directly on TypeSafe's API (https://api.typesafe.ai). Keys: console.typesafe.ai/keys
+TYPESAFE_API_KEY=...
 ```
 
 > **Safety:** the agent writes Python code that the harness then runs, through pytest and the CLI. Run the
@@ -116,12 +116,13 @@ from dataclasses import dataclass
 
 OPUS = "claude-opus-5-5"
 
-# Jev is served through OpenRouter's Decisions API (alpha). Pin the version:
-# confidence thresholds below are tuned against one specific Jev release.
-JEV = "typesafe/jev-1.13"
-JEV_URL = "https://openrouter.ai/api/alpha/decisions"
+# Jev, called directly on TypeSafe's API with TYPESAFE_API_KEY. Once you have tuned the
+# confidence thresholds below, replace "jev-latest" with the pinned version ID from
+# TypeSafe's docs, so a model upgrade can't silently shift them.
+JEV = "jev-latest"
+JEV_URL = "https://api.typesafe.ai/v1/systemone"
 JEV_MAX_STATE_CHARS = 100_000  # Jev's request budget is ~32K tokens (~150K chars); stay well under
-JEV_MAX_QUESTIONS_PER_CALL = 16  # UNVERIFIED: check the Decisions API docs for the real per-request limit
+JEV_MAX_QUESTIONS_PER_CALL = 16  # UNVERIFIED: check TypeSafe's API docs for the real per-request limit
 
 # Server-side refusal fallback for Opus 5.5. If a turn is ever served by another model,
 # the ledger prices it by the model that actually ran (response.model).
@@ -148,9 +149,10 @@ PRICES = {
     # Refusal-fallback targets; they only appear if Opus 5.5 declines a request.
     "claude-opus-5": Price(5.00, 25.00, 6.25, 0.50, _ANTHROPIC, "2026-10-05"),
     "claude-opus-4-8": Price(5.00, 25.00, 6.25, 0.50, _ANTHROPIC, "2026-10-05"),
-    # Jev: $0.042/MTok input, output free. The ledger prefers the `usage.cost` the
-    # Decisions API returns and only falls back to this rate if that field is absent.
-    JEV: Price(0.042, 0.0, 0.0, 0.0, "https://openrouter.ai/docs/guides/community/jev", "2026-10-05"),
+    # Jev: $0.042/MTok input, output free -- the published rate as listed on OpenRouter.
+    # UNVERIFIED for TypeSafe's direct API: confirm against your TypeSafe console/invoice.
+    # The ledger uses `usage.cost` if a response includes it, else this rate.
+    JEV: Price(0.042, 0.0, 0.0, 0.0, "OpenRouter listing; confirm in TypeSafe console", "2026-10-05"),
 }
 
 # Effort per step. Opus 5.5 defaults to "medium", so always set it explicitly.
@@ -264,22 +266,22 @@ class Ledger:
 
 If a fallback ever serves a turn, the ledger prices it by `response.model` and tags the record.
 
-**`Jev.decide` posts `{model, state, questions}`.** It records `usage.input_tokens`, `usage.output_tokens`,
-and `usage.cost`.
+**`Jev.decide` posts `{model, state, questions}`** to TypeSafe's `/v1/systemone` endpoint. It records
+`usage.input_tokens` and `usage.output_tokens`, plus `usage.cost` if the response includes one.
 
 **UNVERIFIED:**
 
-- The endpoint path (`/api/alpha/decisions`; it is an alpha API).
 - The `answers` wrapper around the per-question results.
 - The `usage` field names.
+- Whether the response includes a cost.
 
-All of these come from OpenRouter docs snippets and a public test harness, not from a page I could load. If the
-response shape differs, the harness raises an error that lists the keys it actually got.
+These come from published examples of the API, not from TypeSafe's docs page, which this environment couldn't
+reach. If the response shape differs, the harness raises an error that lists the keys it actually got.
 
 `harness/llm.py`
 
 ```python
-"""Thin, metered clients for Opus (Anthropic SDK) and Jev (OpenRouter Decisions API).
+"""Thin, metered clients for Opus (Anthropic SDK) and Jev (TypeSafe API, POST /v1/systemone).
 
 Each network call is isolated in one small method (`_send` / `_post`) so it is easy to
 stub out for a dry run.
@@ -357,7 +359,7 @@ class Jev:
     def __init__(self, ledger: Ledger, option: str, run: int):
         self.http = httpx.Client(
             timeout=30,
-            headers={"Authorization": f"Bearer {os.environ['OPENROUTER_API_KEY']}"},
+            headers={"Authorization": f"Bearer {os.environ['TYPESAFE_API_KEY']}"},
         )
         self.ledger, self.option, self.run = ledger, option, run
 
@@ -471,8 +473,8 @@ class Answer:
 
 
 # --- Jev wire format -------------------------------------------------------------------------
-# Request/response field names below follow OpenRouter's Decisions API docs and examples as of
-# 2026-10-05. The API is alpha; re-check them against the current reference before relying on this.
+# Request/response field names below follow published examples of TypeSafe's /v1/systemone API
+# as of 2026-10-05 (docs.typesafe.ai was not reachable to confirm). Re-check before relying on this.
 
 def to_jev(q: Question) -> dict:
     if isinstance(q, Noul):
@@ -1262,7 +1264,7 @@ def render(records: list[CallRecord], results: list[RunResult]) -> str:
     if any(c.note == "cost-estimated-from-price-table" for c in jev_calls):
         out.append("\nSome Jev calls had no `usage.cost` in the response; those were priced from the table above.")
     elif jev_calls:
-        out.append("\nJev costs are the `usage.cost` values the Decisions API reported per call.")
+        out.append("\nJev costs are the `usage.cost` values the Jev API reported per call.")
 
     errors = [r for r in results if r.error]
     if errors:
@@ -1367,8 +1369,8 @@ Jev answered 142 questions: 126 accepted (89%), and 16 were below threshold and 
   actually run in production.
 - **Token counts aren't comparable across providers.** Jev and Claude use different tokenizers. Compare
   dollars, not tokens, between models.
-- **Jev billing.** `usage.cost` is what OpenRouter reports. Check your OpenRouter dashboard to confirm it
-  matches what you're invoiced, including any platform fees.
+- **Jev billing.** Unless the response includes a cost, Jev's cost is token count × the table price. Check it
+  against your TypeSafe console.
 - **Refusal fallbacks.** If Opus 5.5 declines a request, another model serves the turn at its own price. These
   calls are tagged `served-by:` in `calls.jsonl`. They should be rare on this task, but check for them.
 - **Failed Jev calls aren't logged.** Network errors and 5xx responses fall back to Opus, and that Opus call

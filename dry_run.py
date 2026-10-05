@@ -8,7 +8,7 @@ from pathlib import Path
 from types import SimpleNamespace as NS
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
-os.environ.setdefault("ANTHROPIC_API_KEY", "x"); os.environ.setdefault("OPENROUTER_API_KEY", "x")
+os.environ.setdefault("ANTHROPIC_API_KEY", "x"); os.environ.setdefault("TYPESAFE_API_KEY", "x")
 from harness import llm
 
 IMPL = {

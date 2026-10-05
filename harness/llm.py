@@ -1,4 +1,4 @@
-"""Thin, metered clients for Opus (Anthropic SDK) and Jev (OpenRouter Decisions API).
+"""Thin, metered clients for Opus (Anthropic SDK) and Jev (TypeSafe API, POST /v1/systemone).
 
 Each network call is isolated in one small method (`_send` / `_post`) so it is easy to
 stub out for a dry run.
@@ -76,7 +76,7 @@ class Jev:
     def __init__(self, ledger: Ledger, option: str, run: int):
         self.http = httpx.Client(
             timeout=30,
-            headers={"Authorization": f"Bearer {os.environ['OPENROUTER_API_KEY']}"},
+            headers={"Authorization": f"Bearer {os.environ['TYPESAFE_API_KEY']}"},
         )
         self.ledger, self.option, self.run = ledger, option, run
 

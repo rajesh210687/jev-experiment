@@ -4,12 +4,13 @@ from dataclasses import dataclass
 
 OPUS = "claude-opus-5-5"
 
-# Jev is served through OpenRouter's Decisions API (alpha). Pin the version:
-# confidence thresholds below are tuned against one specific Jev release.
-JEV = "typesafe/jev-1.13"
-JEV_URL = "https://openrouter.ai/api/alpha/decisions"
+# Jev, called directly on TypeSafe's API with TYPESAFE_API_KEY. Once you have tuned the
+# confidence thresholds below, replace "jev-latest" with the pinned version ID from
+# TypeSafe's docs, so a model upgrade can't silently shift them.
+JEV = "jev-latest"
+JEV_URL = "https://api.typesafe.ai/v1/systemone"
 JEV_MAX_STATE_CHARS = 100_000  # Jev's request budget is ~32K tokens (~150K chars); stay well under
-JEV_MAX_QUESTIONS_PER_CALL = 16  # UNVERIFIED: check the Decisions API docs for the real per-request limit
+JEV_MAX_QUESTIONS_PER_CALL = 16  # UNVERIFIED: check TypeSafe's API docs for the real per-request limit
 
 # Server-side refusal fallback for Opus 5.5. If a turn is ever served by another model,
 # the ledger prices it by the model that actually ran (response.model).
@@ -36,9 +37,10 @@ PRICES = {
     # Refusal-fallback targets; they only appear if Opus 5.5 declines a request.
     "claude-opus-5": Price(5.00, 25.00, 6.25, 0.50, _ANTHROPIC, "2026-10-05"),
     "claude-opus-4-8": Price(5.00, 25.00, 6.25, 0.50, _ANTHROPIC, "2026-10-05"),
-    # Jev: $0.042/MTok input, output free. The ledger prefers the `usage.cost` the
-    # Decisions API returns and only falls back to this rate if that field is absent.
-    JEV: Price(0.042, 0.0, 0.0, 0.0, "https://openrouter.ai/docs/guides/community/jev", "2026-10-05"),
+    # Jev: $0.042/MTok input, output free -- the published rate as listed on OpenRouter.
+    # UNVERIFIED for TypeSafe's direct API: confirm against your TypeSafe console/invoice.
+    # The ledger uses `usage.cost` if a response includes it, else this rate.
+    JEV: Price(0.042, 0.0, 0.0, 0.0, "OpenRouter listing; confirm in TypeSafe console", "2026-10-05"),
 }
 
 # Effort per step. Opus 5.5 defaults to "medium", so always set it explicitly.

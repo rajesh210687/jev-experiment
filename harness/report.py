@@ -123,7 +123,7 @@ def render(records: list[CallRecord], results: list[RunResult]) -> str:
     if any(c.note == "cost-estimated-from-price-table" for c in jev_calls):
         out.append("\nSome Jev calls had no `usage.cost` in the response; those were priced from the table above.")
     elif jev_calls:
-        out.append("\nJev costs are the `usage.cost` values the Decisions API reported per call.")
+        out.append("\nJev costs are the `usage.cost` values the Jev API reported per call.")
 
     errors = [r for r in results if r.error]
     if errors:

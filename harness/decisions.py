@@ -46,8 +46,8 @@ class Answer:
 
 
 # --- Jev wire format -------------------------------------------------------------------------
-# Request/response field names below follow OpenRouter's Decisions API docs and examples as of
-# 2026-10-05. The API is alpha; re-check them against the current reference before relying on this.
+# Request/response field names below follow published examples of TypeSafe's /v1/systemone API
+# as of 2026-10-05 (docs.typesafe.ai was not reachable to confirm). Re-check before relying on this.
 
 def to_jev(q: Question) -> dict:
     if isinstance(q, Noul):
