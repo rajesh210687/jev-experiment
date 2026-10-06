@@ -1,6 +1,6 @@
 """Markdown comparison report from the per-run ledgers. Re-run on saved data with:
 
-    python -m routing.report runs/<dir>/all_runs.json
+    python -m routing.report runs/<dir>/all_runs.json [more all_runs.json ...]   # several files are merged
 """
 
 import json
@@ -163,4 +163,4 @@ def render(results: list[dict], settings: dict | None = None) -> str:
 
 
 if __name__ == "__main__":
-    print(render(json.load(open(sys.argv[1]))))
+    print(render([r for path in sys.argv[1:] for r in json.load(open(path))]))
