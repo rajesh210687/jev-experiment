@@ -1,3 +1,5 @@
+> **Newer experiment:** for the Haiku / Sonnet / Opus routing comparison (Option 1 single model vs. Option 2 Jev-routed, fine vs. coarse steps), see [ROUTING_GUIDE.md](ROUTING_GUIDE.md) and `routing/`. The guide below covers the earlier Opus-only vs. Opus + Jev design.
+
 # Opus-only vs. Opus + Jev: a cost-comparison harness
 
 This harness runs one Python coding task through two agent setups and reports what each one cost:
